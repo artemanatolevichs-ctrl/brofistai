@@ -1,4 +1,4 @@
-/* ======= Игровой слой Brofist.io =======
+/* ======= Игровой слой AIBrofist =======
    Работает поверх движка редактора (window.GAME).
    Режимы: twoPlayer, hideAndSeek, sandbox, race. */
 (function () {

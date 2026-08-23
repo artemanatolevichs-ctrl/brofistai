@@ -1,4 +1,4 @@
-/* Определение устройства Brofist.io
+/* Определение устройства AIBrofist
    Ставит на <html> классы is-mobile / is-tablet / is-desktop и is-touch / is-mouse,
    а также атрибут data-device. Пересчитывается при повороте экрана. */
 (function () {

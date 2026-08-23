@@ -220,7 +220,7 @@ app.get('*', (req, res) => {
   if (!path.extname(req.path) || req.path.endsWith('.html')) {
     return res.status(404).send(`<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Brofist.io</title><style>body{font-family:sans-serif;display:flex;height:100vh;margin:0;
+<title>AIBrofist</title><style>body{font-family:sans-serif;display:flex;height:100vh;margin:0;
 align-items:center;justify-content:center;flex-direction:column;gap:14px;color:#191919;text-align:center;padding:20px}
 a,button{border:1px solid #2196F3;border-radius:4px;padding:11px 22px;background:#fff;color:#000;
 text-decoration:none;font-size:16px;cursor:pointer}</style></head><body>
@@ -255,7 +255,7 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`
   ╔════════════════════════════════════════════════════════════╗
-  ║   🎮 BROFIST.IO MULTIPLAYER SERVER                        ║
+  ║   🎮 AIBROFIST MULTIPLAYER SERVER                        ║
   ║   ✅ Запущен на http://localhost:${PORT}                   ║
   ║   👥 До 2000+ игроков одновременно                         ║
   ║   🎮 Map Editor + Two Player + Hide and Seek + Sandbox     ║
