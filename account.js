@@ -1,0 +1,213 @@
+/* Аккаунты Brofist.io — вход, регистрация, меню профиля */
+(function () {
+  'use strict';
+
+  // корень сайта относительно текущей страницы
+  var BASE = '';
+
+  var css = ''
+    + '.bf-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:none}'
+    + '.bf-box{position:fixed;inset:0;margin:auto;width:320px;height:max-content;max-height:90vh;background:#fff;'
+    + 'border:3px solid #c5c5c5;border-radius:8px;padding:26px 30px 22px;color:#2d2d2d;z-index:9999;display:none;'
+    + 'font-family:sans-serif;box-sizing:border-box}'
+    + '.bf-x{position:absolute;right:5px;top:4px;border:1px solid;border-radius:31px;font-size:14px;'
+    + 'padding:4px 8px;color:red;background:#fff;cursor:pointer;line-height:1}'
+    + '.bf-t{text-align:center;font-size:16px;color:#5b5b5b;margin-bottom:6px}'
+    + '.bf-b{border:1px solid #2196F3;border-radius:3px;text-align:center;font-size:17px;padding:11px 0;'
+    + 'margin:11px 0;box-shadow:0 6px 1px -5px #ccc;display:block;color:#000;background:#fff;cursor:pointer}'
+    + '.bf-b:hover{background:#2196F3;color:#fff}'
+    + '.bf-i{border:1px solid #2b2b2b;border-radius:3px;text-align:center;font-size:17px;padding:11px 0;'
+    + 'margin:10px 0;display:block;color:#000;width:100%;box-sizing:border-box}'
+    + '.bf-e{text-align:center;font-size:12px;color:red;min-height:15px;margin-bottom:4px}'
+    + '.bf-h{text-align:center;font-size:11px;color:#8a8a8a;margin-top:-4px}'
+    + '.bf-back{position:absolute;left:5px;top:4px;border:1px solid;border-radius:28px;font-size:14px;'
+    + 'padding:4px 9px;color:#000;background:#fff;cursor:pointer;line-height:1}';
+
+  var s = document.createElement('style');
+  s.textContent = css;
+  document.head.appendChild(s);
+
+  var ov = document.createElement('div'); ov.className = 'bf-ov';
+  var box = document.createElement('div'); box.className = 'bf-box';
+  document.body.appendChild(ov); document.body.appendChild(box);
+
+  function close() { ov.style.display = 'none'; box.style.display = 'none'; }
+  ov.onclick = close;
+
+  function open(html) {
+    box.innerHTML = html;
+    ov.style.display = 'block';
+    box.style.display = 'block';
+    var x = box.querySelector('.bf-x');
+    if (x) x.onclick = close;
+  }
+
+  // ---------- экран выбора ----------
+  function screenChoice() {
+    open('<div class="bf-x">X</div>'
+       + '<div class="bf-t">Вход или регистрация</div>'
+       + '<div class="bf-b" id="bfLogin">Войти в аккаунт</div>'
+       + '<div class="bf-b" id="bfReg">Создать аккаунт</div>');
+    box.querySelector('#bfLogin').onclick = screenLogin;
+    box.querySelector('#bfReg').onclick = screenRegister;
+  }
+
+  function screenLogin() {
+    open('<div class="bf-x">X</div><div class="bf-back">&lt;</div>'
+       + '<div class="bf-t">Вход</div>'
+       + '<input class="bf-i" id="bfName" type="text" maxlength="20" placeholder="Логин">'
+       + '<input class="bf-i" id="bfPass" type="password" placeholder="Пароль">'
+       + '<div class="bf-e" id="bfErr"></div>'
+       + '<div class="bf-b" id="bfGo">Войти</div>');
+    box.querySelector('.bf-back').onclick = screenChoice;
+    var go = box.querySelector('#bfGo');
+    go.onclick = function () {
+      var n = box.querySelector('#bfName').value.trim();
+      var p = box.querySelector('#bfPass').value;
+      var err = box.querySelector('#bfErr');
+      if (!n) { err.textContent = 'Введите логин'; return; }
+      if (!p) { err.textContent = 'Введите пароль'; return; }
+      go.textContent = 'Проверяю...';
+      post('/login/password', { username: n, password: p }, function (r) {
+        if (r && r.status === 'success') location.reload();
+        else { err.textContent = (r && r.message) || 'Ошибка входа'; go.textContent = 'Войти'; }
+      });
+    };
+    enterKey(screenLoginSubmit);
+    function screenLoginSubmit() { go.click(); }
+  }
+
+  function screenRegister() {
+    open('<div class="bf-x">X</div><div class="bf-back">&lt;</div>'
+       + '<div class="bf-t">Регистрация</div>'
+       + '<input class="bf-i" id="bfName" type="text" maxlength="20" placeholder="Логин">'
+       + '<div class="bf-h">до 20 символов, русские и английские буквы</div>'
+       + '<input class="bf-i" id="bfPass" type="password" placeholder="Пароль">'
+       + '<div class="bf-h">пароль любой длины</div>'
+       + '<div class="bf-e" id="bfErr"></div>'
+       + '<div class="bf-b" id="bfGo">Создать аккаунт</div>');
+    box.querySelector('.bf-back').onclick = screenChoice;
+    var go = box.querySelector('#bfGo');
+    go.onclick = function () {
+      var n = box.querySelector('#bfName').value.trim();
+      var p = box.querySelector('#bfPass').value;
+      var err = box.querySelector('#bfErr');
+      if (!n) { err.textContent = 'Введите логин'; return; }
+      if (n.length > 20) { err.textContent = 'Логин не длиннее 20 символов'; return; }
+      if (!p) { err.textContent = 'Введите пароль'; return; }
+      go.textContent = 'Создаю...';
+      post('/signUp', { name: n, password: p }, function (r) {
+        if (r && r.status === 'success') location.reload();
+        else { err.textContent = (r && r.message) || 'Ошибка регистрации'; go.textContent = 'Создать аккаунт'; }
+      });
+    };
+    enterKey(function () { go.click(); });
+  }
+
+  function enterKey(fn) {
+    Array.prototype.forEach.call(box.querySelectorAll('input'), function (i) {
+      i.onkeydown = function (e) { if (e.key === 'Enter') fn(); };
+    });
+  }
+
+  // ---------- сеть ----------
+  function post(url, data, cb) {
+    var body = Object.keys(data)
+      .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]); })
+      .join('&');
+    fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body
+    }).then(function (r) { return r.json(); })
+      .then(cb)
+      .catch(function () { cb({ status: 'error', message: 'Сервер недоступен. Запусти npm start' }); });
+  }
+  function get(url, cb) {
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(cb).catch(function () { cb(null); });
+  }
+
+  // ---------- шапка ----------
+  var wired = false;
+  function wire() {
+    var icon = document.querySelector('.profile-icon');
+    var menu = document.querySelector('.profile-menu');
+    if (!icon || !menu) return false;
+
+    // если кнопки входа нет в разметке — создаём
+    var signIn = document.querySelector('.auth-buttons');
+    if (!signIn) {
+      signIn = document.createElement('div');
+      signIn.className = 'auth-buttons';
+      signIn.textContent = 'Sign in';
+      signIn.style.cssText = 'float:right;padding:14px 16px;text-align:center;color:#000;cursor:pointer';
+      (icon.parentNode || document.body).appendChild(signIn);
+    }
+    if (wired) return true;
+    wired = true;
+
+    // забираем управление у встроенных обработчиков
+    var fresh = signIn.cloneNode(true);
+    signIn.parentNode.replaceChild(fresh, signIn);
+    signIn = fresh;
+    signIn.style.cursor = 'pointer';
+    signIn.onclick = function (e) { e.stopPropagation(); screenChoice(); };
+
+    var freshIcon = icon.cloneNode(true);
+    icon.parentNode.replaceChild(freshIcon, icon);
+    icon = freshIcon;
+    icon.style.cursor = 'pointer';
+    icon.onclick = function (e) {
+      e.stopPropagation();
+      menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    };
+    document.addEventListener('click', function () { menu.style.display = 'none'; });
+
+    refresh(signIn, icon, menu);
+    return true;
+  }
+
+  function refresh(signIn, icon, menu) {
+    get('/iSigned', function (r) {
+      var d = (r && r.data) || { guest: true };
+      if (d.guest) {
+        signIn.style.display = 'inherit';
+        icon.style.display = 'none';
+        return;
+      }
+      signIn.style.display = 'none';
+      icon.style.display = 'inherit';
+      get('/getAvatar?name=' + encodeURIComponent(d.name), function (a) {
+        var img = icon.querySelector('.profile-image');
+        if (img) img.src = BASE + 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACtWK6eAAACxElEQVR4nO3dQVIbQRAAQdn//7N996HAaHa3GzLPRKhjp2ukA4jXCwAAAAAAAAAAAAAAAAAAAAAAAAAAAH6WX08PwOvPJ37GOT3Eg7/fZ4L4iHO7iQd9nxNh/Mv5XcwDvt4VYfzLOV7k99MDfHN3xHHn6/w4bp5rPLmwzvQg7yDnPX2bP/3634pAzpqynFPmWE8g50xbymnzrCSQM6Yu49S51hAIBIG8b/otPX2+0QTyni3Lt2XOcQQCQSBft+1W3jbvCAKBIJCv2Xobb537MQKBIBAIAoEgkP+3/XP89vlvJRAIAoEgEAgCgSAQCAKBIBAIAoEgkP+3/Xunts9/K4FAEAgEgUAQyNds/Ry/de7HCASCQL5u2228bd4RBAJBIO/ZcitvmXMcgbxv+vJNn280gUAQyBlTb+mpc60hkHOmLeO0eVYSyFlTlnLKHOsJ5Lynl/Pp1/9WPMxr3fkdVM7yAt5BrnXX0orjIh7sfa54N3F+F/OA73ciFOd2Ew/6eZ8JxjkBAAAAAAAAAMBsfsfnvAn/h9y5HuLvQc6aEMfrNWeO9QRyzrSlnDbPSgI5Y+oyTp1rDYG8b/oSTp9vNIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBQBAIBIFAEAgEgUAQCASBvO/X0wN8YPp8ownkjKlLOHWuNQRyzrRlnDbPSgI5a8pSTpkDAAAAAAAAAAAAAAAAAAAAgJ/oL9ICJw+67ArWAAAAAElFTkSuQmCC?' + ((a && a.avatar) || '0') + '.png';
+      });
+      var items = menu.querySelectorAll('.menu-item');
+      if (items[0]) {
+        items[0].style.cursor = 'pointer';
+        items[0].onclick = function () { location.href = BASE + 'users.html?name=' + encodeURIComponent(d.name); };
+      }
+      if (items[1]) {
+        items[1].style.cursor = 'pointer';
+        items[1].onclick = function () { location.href = BASE + 'users.html?name=' + encodeURIComponent(d.name); };
+      }
+      if (items[2]) {
+        items[2].style.cursor = 'pointer';
+        items[2].onclick = function () { post('/logOut', {}, function () { location.reload(); }); };
+      }
+      // отмечаемся живым
+      post('/setLastSeenDate', {}, function () {});
+      setInterval(function () { post('/setLastSeenDate', {}, function () {}); }, 20000);
+    });
+  }
+
+  // шапка на игровых страницах появляется не сразу — ждём её
+  var tries = 0;
+  var timer = setInterval(function () {
+    if (wire() || ++tries > 60) clearInterval(timer);
+  }, 100);
+  if (document.readyState !== 'loading') wire();
+  else document.addEventListener('DOMContentLoaded', wire);
+
+  window.bfOpenAuth = screenChoice;
+})();

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Brofist.io</title>
+<script src="device.js"></script>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:sans-serif;background:#cfe9f5;
+    -webkit-user-select:none;user-select:none}
+  canvas{display:block;position:absolute;inset:0;touch-action:none}
+
+  #hud{position:fixed;top:0;left:0;right:0;padding:8px 12px;display:flex;gap:10px;align-items:center;
+    background:rgba(255,255,255,.85);font-size:13px;z-index:5;flex-wrap:wrap}
+  #hud b{color:#2196F3}
+  #exit{margin-left:auto;background:#e74c3c;color:#fff;border:none;padding:8px 14px;
+    border-radius:6px;cursor:pointer;font-weight:bold}
+
+  /* ---------- чат ---------- */
+  #chat{position:fixed;right:12px;bottom:12px;width:300px;max-width:calc(100vw - 24px);
+    background:rgba(255,255,255,.94);border:1px solid #c9d3dd;border-radius:10px;
+    display:flex;flex-direction:column;z-index:6;overflow:hidden}
+  #chatHead{background:#2196F3;color:#fff;padding:8px 12px;font-weight:bold;font-size:13px;
+    display:flex;align-items:center;cursor:pointer}
+  #chatToggle{margin-left:auto;font-size:15px;line-height:1}
+  #log{height:170px;overflow-y:auto;padding:8px 10px;font-size:13px;line-height:1.45}
+  #log div{margin:3px 0;word-break:break-word}
+  #log b{color:#2196F3}
+  #log .sys{color:#8a8a8a;font-style:italic}
+  #row{display:flex;border-top:1px solid #e2e8ee}
+  #msg{flex:1;border:none;padding:11px;font-size:14px;outline:none;min-width:0}
+  #send{background:#2196F3;color:#fff;border:none;padding:0 16px;cursor:pointer;font-weight:bold}
+  #chat.min #log,#chat.min #row{display:none}
+
+  /* ---------- джойстик и прыжок для телефона ---------- */
+  #pad,#jump{display:none;position:fixed;z-index:6;touch-action:none}
+  #pad{left:18px;bottom:18px;width:130px;height:130px;border-radius:50%;
+    background:rgba(255,255,255,.45);border:2px solid rgba(0,0,0,.15)}
+  #stick{position:absolute;left:35px;top:35px;width:60px;height:60px;border-radius:50%;
+    background:rgba(33,150,243,.85)}
+  #jump{right:18px;bottom:150px;width:82px;height:82px;border-radius:50%;
+    background:rgba(33,150,243,.85);color:#fff;border:none;font-weight:bold;font-size:15px}
+  html.is-mobile #pad,html.is-mobile #jump,html.is-tablet #pad,html.is-tablet #jump{display:block}
+  html.is-mobile #chat,html.is-tablet #chat{width:calc(100vw - 24px);bottom:auto;top:52px;right:12px}
+  html.is-mobile #log,html.is-tablet #log{height:110px}
+  html.is-mobile #chat.min,html.is-tablet #chat.min{width:150px}
+
+  #hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:5;
+    background:rgba(0,0,0,.55);color:#fff;padding:7px 14px;border-radius:16px;font-size:12px}
+  html.is-mobile #hint,html.is-tablet #hint{display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <span>👤 <b id="me">…</b></span>
+  <span>🎮 <b id="modeName">sandbox</b></span>
+  <span>🚪 <b id="roomName">room1</b></span>
+  <span>👥 <b id="count">1</b></span>
+  <button id="exit">← Меню</button>
+</div>
+
+<div id="chat">
+  <div id="chatHead">💬 Чат <span id="chatToggle">▾</span></div>
+  <div id="log"></div>
+  <div id="row">
+    <input id="msg" maxlength="200" placeholder="Написать…">
+    <button id="send">▶</button>
+  </div>
+</div>
+
+<div id="pad"><div id="stick"></div></div>
+<button id="jump">ПРЫЖОК</button>
+<div id="hint">A/D или ←→ — идти · W / ↑ / Пробел — прыжок · Enter — чат</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function(){
+'use strict';
+
+// ---------- параметры комнаты ----------
+var q = new URLSearchParams(location.search);
+var mode = q.get('mode') || 'sandbox';
+var room = q.get('room') || 'room1';
+var myName = q.get('player') || '';
+document.getElementById('modeName').textContent = mode;
+document.getElementById('roomName').textContent = room;
+
+// ---------- мир ----------
+var GROUND = 430, GRAV = 0.75, JUMP = -13, SPEED = 4.2;
+var PLATFORMS = [
+  {x:-2000,y:GROUND,w:6000,h:400},
+  {x:260,y:330,w:190,h:22},
+  {x:560,y:255,w:170,h:22},
+  {x:880,y:330,w:210,h:22},
+  {x:1200,y:200,w:150,h:22}
+];
+var TREES = [{x:120,y:GROUND},{x:760,y:GROUND},{x:1150,y:GROUND},{x:1480,y:GROUND}];
+
+var me = {x:400,y:GROUND-58,vx:0,vy:0,onGround:true,face:1};
+var others = {};          // id -> {x,y,name,tx,ty}
+var keys = {};
+var cam = 0;
+
+var cv = document.getElementById('c'), ctx = cv.getContext('2d');
+function resize(){ cv.width = innerWidth; cv.height = innerHeight; }
+addEventListener('resize', resize); resize();
+
+// ---------- связь ----------
+var socket = io();
+var logEl = document.getElementById('log');
+
+function line(html, cls){
+  var d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.innerHTML = html;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+  while (logEl.children.length > 120) logEl.removeChild(logEl.firstChild);
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+// имя: из аккаунта, иначе из ссылки, иначе спрашиваем
+function start(name){
+  myName = name;
+  document.getElementById('me').textContent = name;
+  socket.emit('join', { playerName: name, gameMode: mode, room: room });
+  socket.emit('getChatHistory', { room: room });
+  line('Вы вошли в комнату <b>' + esc(room) + '</b>', 'sys');
+}
+
+fetch('/iSigned', {credentials:'same-origin'})
+  .then(function(r){ return r.json(); })
+  .then(function(r){
+    var n = (r && r.data && !r.data.guest) ? r.data.name : myName;
+    if (!n) n = (prompt('Твоё имя в игре:', 'Player') || 'Player').slice(0,20);
+    start(n);
+  })
+  .catch(function(){ start(myName || 'Player'); });
+
+socket.on('playersList', function(list){
+  var seen = {};
+  list.forEach(function(p){
+    if (p.id === socket.id) return;
+    seen[p.id] = 1;
+    if (!others[p.id])
+      others[p.id] = {x:p.position.x, y:p.position.y, tx:p.position.x, ty:p.position.y, name:p.name};
+    else others[p.id].name = p.name;
+  });
+  Object.keys(others).forEach(function(id){ if (!seen[id]) delete others[id]; });
+  updateCount();
+});
+socket.on('playerJoined', function(p){
+  if (p.id === socket.id) return;
+  others[p.id] = {x:p.position.x, y:p.position.y, tx:p.position.x, ty:p.position.y, name:p.name};
+  line(esc(p.name) + ' зашёл в игру', 'sys');
+  updateCount();
+});
+socket.on('playerLeft', function(d){
+  var o = others[d.playerId];
+  if (o) line(esc(o.name) + ' вышел', 'sys');
+  delete others[d.playerId];
+  updateCount();
+});
+socket.on('playerMoved', function(d){
+  var o = others[d.playerId];
+  if (!o) return;
+  o.tx = d.position.x; o.ty = d.position.y;
+  if (d.position.face !== undefined) o.face = d.position.face;
+});
+socket.on('chatMessage', function(m){
+  line('<b>' + esc(m.playerName) + ':</b> ' + esc(m.text));
+});
+socket.on('chatHistory', function(list){
+  (list || []).forEach(function(m){ line('<b>' + esc(m.playerName) + ':</b> ' + esc(m.text)); });
+});
+socket.on('disconnect', function(){ line('Связь с сервером потеряна', 'sys'); });
+
+function updateCount(){
+  document.getElementById('count').textContent = Object.keys(others).length + 1;
+}
+
+// ---------- чат ----------
+var msg = document.getElementById('msg');
+function sendMsg(){
+  var t = msg.value.trim();
+  if (!t) return;
+  socket.emit('sendChat', { text: t });
+  msg.value = '';
+}
+document.getElementById('send').onclick = sendMsg;
+msg.addEventListener('keydown', function(e){
+  e.stopPropagation();
+  if (e.key === 'Enter') { sendMsg(); msg.blur(); }
+});
+var chatBox = document.getElementById('chat');
+document.getElementById('chatHead').onclick = function(){
+  chatBox.classList.toggle('min');
+  document.getElementById('chatToggle').textContent = chatBox.classList.contains('min') ? '▸' : '▾';
+};
+
+// ---------- управление ----------
+addEventListener('keydown', function(e){
+  if (e.key === 'Enter' && document.activeElement !== msg) { msg.focus(); e.preventDefault(); return; }
+  if (document.activeElement === msg) return;
+  keys[e.key.toLowerCase()] = true;
+  if ([' ','arrowup','arrowdown','arrowleft','arrowright'].indexOf(e.key.toLowerCase()) > -1) e.preventDefault();
+});
+addEventListener('keyup', function(e){ keys[e.key.toLowerCase()] = false; });
+
+var touchDir = 0, touchJump = false;
+var pad = document.getElementById('pad'), stick = document.getElementById('stick');
+function padMove(e){
+  var t = e.touches ? e.touches[0] : e;
+  var r = pad.getBoundingClientRect();
+  var dx = t.clientX - (r.left + r.width/2);
+  var lim = 40, k = Math.max(-lim, Math.min(lim, dx));
+  stick.style.left = (35 + k) + 'px';
+  touchDir = Math.abs(dx) < 12 ? 0 : (dx > 0 ? 1 : -1);
+}
+function padEnd(){ touchDir = 0; stick.style.left = '35px'; }
+pad.addEventListener('touchstart', function(e){ e.preventDefault(); padMove(e); }, {passive:false});
+pad.addEventListener('touchmove',  function(e){ e.preventDefault(); padMove(e); }, {passive:false});
+pad.addEventListener('touchend',   function(e){ e.preventDefault(); padEnd(); },   {passive:false});
+
+var jumpBtn = document.getElementById('jump');
+jumpBtn.addEventListener('touchstart', function(e){ e.preventDefault(); touchJump = true; }, {passive:false});
+jumpBtn.addEventListener('touchend',   function(e){ e.preventDefault(); touchJump = false; }, {passive:false});
+
+document.getElementById('exit').onclick = function(){ location.href = 'index.html'; };
+
+// ---------- физика ----------
+function solid(x, y){
+  for (var i=0;i<PLATFORMS.length;i++){
+    var p = PLATFORMS[i];
+    if (x > p.x && x < p.x + p.w && y > p.y && y < p.y + p.h) return p;
+  }
+  return null;
+}
+function step(){
+  var left  = keys['a'] || keys['arrowleft']  || touchDir === -1;
+  var right = keys['d'] || keys['arrowright'] || touchDir === 1;
+  var up    = keys['w'] || keys['arrowup'] || keys[' '] || touchJump;
+
+  me.vx = (right ? SPEED : 0) - (left ? SPEED : 0);
+  if (me.vx) me.face = me.vx > 0 ? 1 : -1;
+  if (up && me.onGround) { me.vy = JUMP; me.onGround = false; }
+
+  me.vy += GRAV;
+  if (me.vy > 18) me.vy = 18;
+
+  me.x += me.vx;
+  me.y += me.vy;
+
+  // приземление
+  me.onGround = false;
+  var below = solid(me.x, me.y + 2);
+  if (below && me.vy >= 0) { me.y = below.y; me.vy = 0; me.onGround = true; }
+  if (me.y > 1200) { me.x = 400; me.y = GROUND - 58; me.vy = 0; }
+
+  // плавное движение чужих
+  Object.keys(others).forEach(function(id){
+    var o = others[id];
+    o.x += (o.tx - o.x) * 0.25;
+    o.y += (o.ty - o.y) * 0.25;
+  });
+
+  cam += ((me.x - cv.width/2) - cam) * 0.1;
+}
+
+var lastSent = 0;
+function sendPos(){
+  var now = Date.now();
+  if (now - lastSent < 60) return;
+  lastSent = now;
+  socket.emit('movePlayer', { position: { x: Math.round(me.x), y: Math.round(me.y), face: me.face } });
+}
+
+// ---------- отрисовка ----------
+function figure(x, y, name, mine){
+  var sx = x - cam;
+  if (sx < -80 || sx > cv.width + 80) return;
+  ctx.fillStyle = mine ? '#111' : '#3a3a3a';
+  ctx.beginPath(); ctx.arc(sx, y - 46, 11, 0, 6.284); ctx.fill();
+  ctx.fillRect(sx - 8, y - 33, 16, 33);
+  if (mine){ ctx.strokeStyle = '#2196F3'; ctx.lineWidth = 2; ctx.strokeRect(sx-11, y-60, 22, 60); }
+  ctx.fillStyle = '#000';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(name, sx, y - 66);
+}
+
+function draw(){
+  var h = cv.height, w = cv.width;
+  var horizon = h - 120;
+
+  ctx.fillStyle = '#cfe9f5'; ctx.fillRect(0,0,w,h);
+
+  ctx.save();
+  ctx.translate(0, horizon - GROUND);
+
+  // земля
+  ctx.fillStyle = '#8a5a2b';
+  ctx.fillRect(0, GROUND, w, h + 400);
+  ctx.fillStyle = '#2fbf2f';
+  ctx.fillRect(0, GROUND - 8, w, 10);
+
+  // платформы
+  PLATFORMS.slice(1).forEach(function(p){
+    var sx = p.x - cam;
+    if (sx < -300 || sx > w + 300) return;
+    ctx.fillStyle = '#8a5a2b'; ctx.fillRect(sx, p.y, p.w, p.h);
+    ctx.fillStyle = '#2fbf2f'; ctx.fillRect(sx, p.y - 5, p.w, 6);
+  });
+
+  // деревья
+  TREES.forEach(function(t){
+    var sx = t.x - cam;
+    if (sx < -160 || sx > w + 160) return;
+    ctx.fillStyle = '#8a5a2b'; ctx.fillRect(sx - 9, t.y - 110, 18, 110);
+    ctx.fillStyle = '#1f8f1f';
+    ctx.beginPath(); ctx.arc(sx, t.y - 130, 42, 0, 6.284); ctx.fill();
+  });
+
+  Object.keys(others).forEach(function(id){ figure(others[id].x, others[id].y, others[id].name, false); });
+  figure(me.x, me.y, myName || '…', true);
+
+  ctx.restore();
+}
+
+function loop(){ step(); sendPos(); draw(); requestAnimationFrame(loop); }
+loop();
+})();
+</script>
+</body>
+</html>
