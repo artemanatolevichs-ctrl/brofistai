@@ -55,23 +55,26 @@
     + '#gBanner p{margin:0;color:#6b7280;max-width:420px}'
     + '#gChat{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0}'
     + '#gMsg{width:1px}'
-    + '#gHint{position:fixed;left:50%;transform:translateX(-50%);bottom:56px;z-index:59;'
+    + '#gTalk{display:none;position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:61;'
+    + 'width:52px;height:52px;border-radius:50%;border:none;background:rgba(33,150,243,.85);'
+    + 'color:#fff;font-size:22px;cursor:pointer}'
+    + 'html.is-mobile #gTalk,html.is-tablet #gTalk{display:block}'
+    + '#gHint{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:59;'
     + 'background:rgba(0,0,0,.5);color:#fff;padding:5px 13px;border-radius:14px;font:11.5px sans-serif;pointer-events:none}'
     + 'html.is-mobile #gHint,html.is-tablet #gHint{display:none}'
-    + '#gPad,#gJump{display:none;position:fixed;z-index:61;touch-action:none}'
-    + '#gPad{left:16px;bottom:150px;width:118px;height:118px;border-radius:50%;background:rgba(0,0,0,.10)}'
-    + '#gStick{position:absolute;left:31px;top:31px;width:56px;height:56px;border-radius:50%;background:rgba(33,150,243,.85)}'
-    + '#gJump{right:16px;bottom:165px;width:76px;height:76px;border-radius:50%;background:rgba(33,150,243,.85);'
-    + 'color:#fff;border:none;font-weight:bold;font-size:14px}'
-    + 'html.is-mobile #gPad,html.is-mobile #gJump,html.is-tablet #gPad,html.is-tablet #gJump{display:block}';
+    // на телефоне: шапка компактнее, карточка карты уходит наверх, чтобы не мешать кнопкам
+    + 'html.is-mobile #gTop,html.is-tablet #gTop{padding:5px 9px;gap:8px;font-size:12px}'
+    + 'html.is-mobile #gExit,html.is-tablet #gExit{padding:9px 14px;font-size:13px}'
+    + 'html.is-mobile #gMap,html.is-tablet #gMap{bottom:auto;top:46px;right:8px;max-width:56vw;'
+    + 'padding:6px 10px;font-size:11.5px}'
+    + 'html.is-mobile #gBanner h2,html.is-tablet #gBanner h2{font-size:20px}'
+    + 'html.is-mobile #gBanner p,html.is-tablet #gBanner p{font-size:14px}'
+    ;
 
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
   document.body.insertAdjacentHTML('beforeend',
-      '<div id="gTop"><span>👤 <b id="gName">…</b></span>'
-    + '<span id="gRoleBox" style="display:none">🎭 <b id="gRole"></b></span>'
-    + '<span>🎮 <b id="gMode"></b></span>'
-    + '<span id="gRoomBox">🚪 <b id="gRoom"></b></span>'
+      '<div id="gTop"><span id="gRoleBox" style="display:none">🎭 <b id="gRole"></b></span>'
     + '<span>👥 <b id="gCount">1</b></span>'
     + '<span id="gTimeBox">⏱️ <b id="gTime">—</b></span>'
     + '<button id="gExit">← Меню</button></div>'
@@ -82,11 +85,10 @@
     + '<div id="gBanner"><h2 id="gbT"></h2><p id="gbP"></p></div>'
     + '<div id="gChat"><input id="gMsg" maxlength="90"></div>'
     + '<div id="gHint">Просто печатай, чтобы говорить · Enter — отправить · A/D или ←→ — идти · W / ↑ / Пробел — прыжок</div>'
-    + '<div id="gPad"><div id="gStick"></div></div><button id="gJump">ПРЫЖОК</button>');
+    + '<button id="gTalk">💬</button>'
+);
 
   var $ = function (id) { return document.getElementById(id); };
-  $('gMode').textContent = MODE;
-  $('gRoom').textContent = '…';
   $('gExit').onclick = function () { location.href = 'index.html'; };
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
@@ -103,9 +105,13 @@
     setTimeout(function () { d.remove(); }, 2600);
   }
 
-  // реплики висят над головой 4 секунды
-  var bubbles = {};
-  function bubble(who, text) { bubbles[who] = { text: text, until: Date.now() + 4000 }; }
+  // сказанные реплики: 2 секунды плавно уплывают вверх и тают
+  var SAY_FADE = 2000;
+  var spoken = {};
+  function speak(who, text) {
+    if (!text) return;
+    spoken[who] = { text: text, born: Date.now() };
+  }
 
   function banner(title, text, show) {
     $('gbT').textContent = title || '';
@@ -125,7 +131,7 @@
     }
     banner('', '', false);
     $('gMapName').textContent = m.mapName;
-    $('gMapAuthor').textContent = 'автор: ' + m.author + (m.mapType ? ' · ' + m.mapType : '');
+    $('gMapAuthor').textContent = 'автор: ' + m.author;
     try {
       GAME.loadMap(m.mapData);
       GAME.startPlay();
@@ -201,8 +207,7 @@
     if (VIEW) {                       // просмотр карты из Maps Browser
       phase = 'dev';
       $('gTimeBox').style.display = 'none';
-      $('gRoomBox').style.display = 'none';
-      $('gChat').style.display = 'none';
+        $('gChat').style.display = 'none';
       $('gHint').style.display = 'none';
       $('gRate').style.display = 'flex';
       fetch('/getMapData?author=' + encodeURIComponent(VAUTH || '') + '&mapName=' + encodeURIComponent(VIEW))
@@ -248,10 +253,7 @@
         var signed = res[0], pick = res[1];
         me.name = (signed && signed.data && !signed.data.guest) ? signed.data.name : guestName();
         ROOM = pick.room || 'room1';
-        $('gName').textContent = me.name;
-        $('gRoom').textContent = ROOM;
         socket.emit('join', { playerName: me.name, gameMode: MODE, room: ROOM });
-        log('Комната <b>' + esc(ROOM) + '</b>', 's');
       });
     });
 
@@ -292,10 +294,11 @@
       if (d.position.w) { o.w = d.position.w; o.h = d.position.h; }
       o.color = d.position.color || COLOR_NORMAL;
       o.say = d.position.say || '';
+      o.fin = !!d.position.fin;
     });
 
     socket.on('chatMessage', function (m) {
-      bubble(m.playerName, m.text);
+      if (m.playerName !== me.name) speak(m.playerName, m.text);
       watchCaught(m.text);
     });
   }
@@ -310,8 +313,10 @@
     lastSent = now;
     socket.emit('movePlayer', { position: {
       x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h,
-      color: GAME.myColor || COLOR_NORMAL, say: typing || ''
+      color: GAME.myColor || COLOR_NORMAL, say: typing || '', fin: !!GAME.done
     }});
+
+    checkAllFinished();
 
     // искатель ловит прячущихся касанием
     if (MODE === 'hideAndSeek' && me.role === 'seeker' && phase === 'round') {
@@ -334,6 +339,24 @@
     }
   }
 
+  // все дошли до финиша — не ждём таймер, ставим новую карту
+  var switching = false;
+  function checkAllFinished() {
+    if (switching || phase !== 'round' || MODE === 'race' || VIEW) return;
+    if (!GAME.done) return;
+    var ids = Object.keys(others);
+    for (var i = 0; i < ids.length; i++) if (!others[ids[i]].fin) return;
+
+    switching = true;
+    log(ids.length ? 'Все на финише — новая карта!' : 'Финиш! Новая карта');
+    setTimeout(function () {
+      nextMap(function () {
+        phaseEnds = Date.now() + (MODE === 'sandbox' ? SANDBOX_MS : ROUND_MS);
+        switching = false;
+      });
+    }, 1400);
+  }
+
   // ---------- отрисовка чужих игроков ----------
   GAME.onDraw = function (ctx) {
     Object.keys(others).forEach(function (id) {
@@ -351,20 +374,32 @@
     if (GAME.playing && me.name) drawTag(ctx, me.name, typing, p.x + p.w / 2, p.y, p.h);
   };
 
-  // имя — под игроком зелёным, реплика — над головой, как в оригинале
+  // имя — под игроком зелёным, реплика — над головой
   function drawTag(ctx, name, say, cx, topY, h) {
     ctx.save();
     ctx.textAlign = 'center';
-
     ctx.font = '15px sans-serif';
+
     ctx.fillStyle = '#2e9b2e';
     ctx.fillText(name, cx, topY + h + 17);
 
-    var text = say || (bubbles[name] && bubbles[name].until > Date.now() ? bubbles[name].text : '');
-    if (text) {
-      ctx.font = '15px sans-serif';
+    if (say) {
+      // то, что печатают прямо сейчас — чётко и на месте
       ctx.fillStyle = '#3a3a3a';
-      ctx.fillText(text, cx, topY - 14);
+      ctx.fillText(say, cx, topY - 14);
+    } else {
+      var sp = spoken[name];
+      if (sp) {
+        var age = Date.now() - sp.born;
+        if (age >= SAY_FADE) { delete spoken[name]; }
+        else {
+          var k = age / SAY_FADE;                 // 0 → 1
+          ctx.globalAlpha = 1 - k * k;            // тает к концу быстрее
+          ctx.fillStyle = '#3a3a3a';
+          ctx.fillText(sp.text, cx, topY - 14 - k * 34);   // уплывает вверх
+          ctx.globalAlpha = 1;
+        }
+      }
     }
     ctx.restore();
   }
@@ -382,14 +417,26 @@
   inp.addEventListener('keydown', function (e) {
     e.stopPropagation();
     if (e.key === 'Enter') {
+      e.preventDefault();
       var v = inp.value.trim();
-      if (v && socket) socket.emit('sendChat', { text: v });
-      stopTyping();
+      stopTyping();                         // сначала гасим набор, чтобы текст не задвоился
+      if (v) {
+        speak(me.name, v);                  // своя реплика сразу уплывает
+        if (socket) socket.emit('sendChat', { text: v });
+      }
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       stopTyping();
     }
   });
   inp.addEventListener('blur', function () { typing = ''; inp.value = ''; });
+
+  // на телефоне клавиатуры нет — вызываем её кнопкой
+  var talk = $('gTalk');
+  if (talk) talk.addEventListener('click', function (e) {
+    e.preventDefault();
+    inp.focus();
+  });
 
   // любая печатная клавиша начинает реплику
   document.addEventListener('keydown', function (e) {
@@ -419,28 +466,8 @@
     });
   });
 
-  // ---------- сенсорное управление ----------
-  var pad = $('gPad'), stick = $('gStick');
-  function key(k, v) { var e = new KeyboardEvent(v ? 'keydown' : 'keyup', { code: k, bubbles: true });
-    document.dispatchEvent(e); }
-  var dir = 0;
-  function padMove(ev) {
-    var t = ev.touches ? ev.touches[0] : ev;
-    var r = pad.getBoundingClientRect();
-    var dx = t.clientX - (r.left + r.width / 2);
-    stick.style.left = (31 + Math.max(-32, Math.min(32, dx))) + 'px';
-    var nd = Math.abs(dx) < 12 ? 0 : (dx > 0 ? 1 : -1);
-    if (nd !== dir) {
-      key('ArrowLeft', nd === -1); key('ArrowRight', nd === 1);
-      dir = nd;
-    }
-  }
-  function padEnd() { key('ArrowLeft', false); key('ArrowRight', false); dir = 0; stick.style.left = '31px'; }
-  pad.addEventListener('touchstart', function (e) { e.preventDefault(); padMove(e); }, { passive: false });
-  pad.addEventListener('touchmove',  function (e) { e.preventDefault(); padMove(e); }, { passive: false });
-  pad.addEventListener('touchend',   function (e) { e.preventDefault(); padEnd(); },   { passive: false });
-  $('gJump').addEventListener('touchstart', function (e) { e.preventDefault(); key('ArrowUp', true); }, { passive: false });
-  $('gJump').addEventListener('touchend',   function (e) { e.preventDefault(); key('ArrowUp', false); }, { passive: false });
+  // сенсорное управление берёт на себя движок:
+  // при касании он сам показывает кнопки ◀ ▶ JUMP внизу экрана
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
