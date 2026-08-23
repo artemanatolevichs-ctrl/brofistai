@@ -1371,7 +1371,9 @@ window.GAME = {
     resetView();
     return objects.length;
   },
-  startPlay: function(){ if(!playing) play(); return playing; }
+  startPlay: function(){ if(!playing) play(); return playing; },
+  setGrid: function(v){ grid = !!v; document.getElementById("bGrid").classList.toggle("on", grid); },
+  clear: function(){ if(playing) stop(); objects = []; sel = null; resetView(); }
 };
 
 resize();

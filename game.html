@@ -177,10 +177,9 @@ body.mob #insp{left:8px;right:8px;width:auto;top:auto;bottom:66px;transform:none
 body.mob #hint,body.mob #gravBox{display:none}
 body.mob #zoomBox{bottom:68px;right:8px}
 body.mob #msg h1{font-size:38px}
-
-/* ===== игровой режим: интерфейс редактора скрыт ===== */
-#tools,#insp,#modes,#scene,#stats,#bPlay,#exitBtn{display:none !important}
-body{overflow:hidden}
+#tools,#insp,#modes,#scene,#stats,#bPlay,#exitBtn,
+#gravBox,#zoomBox,#hint,#hud,#file,#pad,#pLeft,#pRight,#pJump{display:none !important}
+body{background:#eef2f8;overflow:hidden}
 </style>
 	<script src="device.js"></script>
 	<link rel="stylesheet" type="text/css" href="mobile.css">
@@ -1375,7 +1374,9 @@ window.GAME = {
     resetView();
     return objects.length;
   },
-  startPlay: function(){ if(!playing) play(); return playing; }
+  startPlay: function(){ if(!playing) play(); return playing; },
+  setGrid: function(v){ grid = !!v; document.getElementById("bGrid").classList.toggle("on", grid); },
+  clear: function(){ if(playing) stop(); objects = []; sel = null; resetView(); }
 };
 
 resize();

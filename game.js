@@ -53,11 +53,8 @@
     + 'flex-direction:column;gap:9px;background:rgba(255,255,255,.93);font:16px sans-serif;text-align:center;padding:24px}'
     + '#gBanner h2{margin:0;font-size:25px}'
     + '#gBanner p{margin:0;color:#6b7280;max-width:420px}'
-    + '#gChat{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:60;width:340px;'
-    + 'max-width:80vw;background:rgba(255,255,255,.94);border:1px solid #d7dee7;border-radius:22px;'
-    + 'overflow:hidden;font:13px sans-serif;display:flex}'
-    + '#gMsg{flex:1;border:none;padding:11px 16px;outline:none;min-width:0;font-size:14px;background:transparent}'
-    + '#gSend{background:#2196F3;color:#fff;border:none;padding:0 18px;cursor:pointer;font-size:15px}'
+    + '#gChat{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0}'
+    + '#gMsg{width:1px}'
     + '#gHint{position:fixed;left:50%;transform:translateX(-50%);bottom:56px;z-index:59;'
     + 'background:rgba(0,0,0,.5);color:#fff;padding:5px 13px;border-radius:14px;font:11.5px sans-serif;pointer-events:none}'
     + 'html.is-mobile #gHint,html.is-tablet #gHint{display:none}'
@@ -83,8 +80,8 @@
     + '<button data-v="1">👍</button><button data-v="-1">👎</button>'
     + '<span id="gRating" style="color:#6b7280"></span></div></div>'
     + '<div id="gBanner"><h2 id="gbT"></h2><p id="gbP"></p></div>'
-    + '<div id="gChat"><input id="gMsg" maxlength="120" placeholder="Написать…"><button id="gSend">▶</button></div>'
-    + '<div id="gHint">Enter — чат · A/D или ←→ — идти · W / ↑ / Пробел — прыжок</div>'
+    + '<div id="gChat"><input id="gMsg" maxlength="90"></div>'
+    + '<div id="gHint">Просто печатай, чтобы говорить · Enter — отправить · A/D или ←→ — идти · W / ↑ / Пробел — прыжок</div>'
     + '<div id="gPad"><div id="gStick"></div></div><button id="gJump">ПРЫЖОК</button>');
 
   var $ = function (id) { return document.getElementById(id); };
@@ -122,8 +119,11 @@
     if (!m) {
       $('gMapName').textContent = 'Карт пока нет';
       $('gMapAuthor').textContent = 'Опубликуй карту в Map Editor';
+      GAME.clear();                       // убираем демо-сцену редактора
+      banner('Здесь пока пусто', 'Никто ещё не опубликовал карту для этого режима. Открой Map Editor и выложи свою.', true);
       return;
     }
+    banner('', '', false);
     $('gMapName').textContent = m.mapName;
     $('gMapAuthor').textContent = 'автор: ' + m.author + (m.mapType ? ' · ' + m.mapType : '');
     try {
@@ -196,6 +196,8 @@
 
   // ---------- запуск по режимам ----------
   function boot() {
+    GAME.setGrid(false);
+
     if (VIEW) {                       // просмотр карты из Maps Browser
       phase = 'dev';
       $('gTimeBox').style.display = 'none';
@@ -289,6 +291,7 @@
       o.tx = d.position.x; o.ty = d.position.y;
       if (d.position.w) { o.w = d.position.w; o.h = d.position.h; }
       o.color = d.position.color || COLOR_NORMAL;
+      o.say = d.position.say || '';
     });
 
     socket.on('chatMessage', function (m) {
@@ -306,7 +309,8 @@
     if (now - lastSent < 70) return;
     lastSent = now;
     socket.emit('movePlayer', { position: {
-      x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h, color: GAME.myColor || COLOR_NORMAL
+      x: Math.round(p.x), y: Math.round(p.y), w: p.w, h: p.h,
+      color: GAME.myColor || COLOR_NORMAL, say: typing || ''
     }});
 
     // искатель ловит прячущихся касанием
@@ -341,49 +345,59 @@
       ctx.translate(o.x, o.y);
       GAME.figure(w, h, o.caught ? COLOR_CAUGHT : (o.color || COLOR_NORMAL), true);
       ctx.restore();
-      drawTag(ctx, o.name || '', o.x + w / 2, o.y - 9);
+      drawTag(ctx, o.name || '', o.say, o.x + w / 2, o.y, (o.h || 74));
     });
     var p = GAME.pl;
-    if (GAME.playing && me.name) drawTag(ctx, me.name, p.x + p.w / 2, p.y - 9);
+    if (GAME.playing && me.name) drawTag(ctx, me.name, typing, p.x + p.w / 2, p.y, p.h);
   };
 
-  // имя и, если есть, реплика над головой
-  function drawTag(ctx, name, cx, topY) {
+  // имя — под игроком зелёным, реплика — над головой, как в оригинале
+  function drawTag(ctx, name, say, cx, topY, h) {
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#111827';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText(name, cx, topY);
 
-    var b = bubbles[name];
-    if (b && b.until > Date.now()) {
-      ctx.font = '13px sans-serif';
-      var w = ctx.measureText(b.text).width + 16;
-      var y = topY - 27;
-      ctx.fillStyle = 'rgba(255,255,255,.95)';
-      ctx.strokeStyle = '#c9d3dd';
-      ctx.lineWidth = 1;
-      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(cx - w / 2, y - 15, w, 22, 8); ctx.fill(); ctx.stroke(); }
-      else ctx.fillRect(cx - w / 2, y - 15, w, 22);
-      ctx.fillStyle = '#111827';
-      ctx.fillText(b.text, cx, y);
-    } else if (b) { delete bubbles[name]; }
+    ctx.font = '15px sans-serif';
+    ctx.fillStyle = '#2e9b2e';
+    ctx.fillText(name, cx, topY + h + 17);
+
+    var text = say || (bubbles[name] && bubbles[name].until > Date.now() ? bubbles[name].text : '');
+    if (text) {
+      ctx.font = '15px sans-serif';
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillText(text, cx, topY - 14);
+    }
     ctx.restore();
   }
 
   // ---------- чат ----------
-  function send() {
-    var v = $('gMsg').value.trim();
-    if (!v || !socket) return;
-    socket.emit('sendChat', { text: v });
-    bubble(me.name, v);
-    $('gMsg').value = '';
-    $('gMsg').blur();
+  // текст виден над головой прямо во время набора и пропадает по Enter
+  var typing = '';
+  var inp = $('gMsg');
+
+  function stopTyping() {
+    typing = ''; inp.value = ''; inp.blur();
   }
-  $('gSend').onclick = send;
-  $('gMsg').addEventListener('keydown', function (e) {
+
+  inp.addEventListener('input', function () { typing = inp.value; });
+  inp.addEventListener('keydown', function (e) {
     e.stopPropagation();
-    if (e.key === 'Enter') { send(); $('gMsg').blur(); }
+    if (e.key === 'Enter') {
+      var v = inp.value.trim();
+      if (v && socket) socket.emit('sendChat', { text: v });
+      stopTyping();
+    } else if (e.key === 'Escape') {
+      stopTyping();
+    }
+  });
+  inp.addEventListener('blur', function () { typing = ''; inp.value = ''; });
+
+  // любая печатная клавиша начинает реплику
+  document.addEventListener('keydown', function (e) {
+    if (document.activeElement === inp) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key.length !== 1) return;
+    if (e.key === ' ') return;                  // пробел — прыжок
+    inp.focus();
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && document.activeElement !== $('gMsg')) {
