@@ -17,11 +17,7 @@
 
   function go(target) {
     if (typeof target === 'string') { location.href = target; return; }
-    if (target && target.play) {
-      var r = prompt('Код комнаты (одинаковый у друзей):', 'room1');
-      if (r === null) return;
-      location.href = 'play.html?mode=' + target.play + '&room=' + encodeURIComponent((r || '').trim() || 'room1');
-    }
+    if (target && target.play) location.href = 'game.html?mode=' + target.play;
   }
 
   // короткое всплывающее сообщение вместо перехода в никуда

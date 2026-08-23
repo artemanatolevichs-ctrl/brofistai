@@ -5,7 +5,14 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, 'data');
 const MAPS_FILE = path.join(DATA_DIR, 'maps.json');
 
-const MODES = ['sandbox', 'hideAndSeek', 'twoPlayer', 'race'];
+const MODES = ['hideAndSeek', 'twoPlayer', 'race'];
+const DAILY_LIMIT = 3;                 // сколько новых карт можно выложить за сутки
+
+// сколько новых карт автор выложил сегодня
+function todayCount(author) {
+  const from = Date.now() - 864e5;
+  return maps.filter(m => low(m.author) === low(author) && (m.created || m.date) >= from).length;
+}
 
 let maps = [];
 
@@ -49,6 +56,25 @@ function register(app, getUser) {
       return res.json({ status: 'error', message: 'Карта пустая' });
 
     const i = maps.findIndex(m => low(m.author) === low(u.name) && low(m.mapName) === low(mapName));
+
+    // лимит считаем только для новых карт — обновлять свои можно свободно
+    if (i === -1) {
+      const used = todayCount(u.name);
+      if (used >= DAILY_LIMIT) {
+        const oldest = maps
+          .filter(m => low(m.author) === low(u.name) && (m.created || m.date) >= Date.now() - 864e5)
+          .sort((a, b) => (a.created || a.date) - (b.created || b.date))[0];
+        const waitMs = oldest ? ((oldest.created || oldest.date) + 864e5 - Date.now()) : 864e5;
+        const mins = Math.ceil(waitMs / 60000);
+        const h = Math.floor(mins / 60), mn = mins % 60;
+        return res.json({
+          status: 'error',
+          message: 'Лимит ' + DAILY_LIMIT + ' карты в сутки исчерпан. Следующую можно выложить через '
+                   + (h > 0 ? h + ' ч ' + mn + ' мин' : mn + ' мин') + '.'
+        });
+      }
+    }
+
     if (i !== -1) {
       if (!overwrite)
         return res.json({ status: 'exists', message: 'Карта с таким названием уже есть. Перезаписать?' });
@@ -61,11 +87,21 @@ function register(app, getUser) {
 
     maps.push({
       mapName, mapType, mapData,
-      author: u.name, date: Date.now(),
+      author: u.name, date: Date.now(), created: Date.now(),
       rating: 0, votes: {}
     });
     save();
-    res.json({ status: 'success', message: 'Карта опубликована в Maps Browser' });
+    const left = DAILY_LIMIT - todayCount(u.name);
+    res.json({
+      status: 'success',
+      message: 'Карта опубликована в Maps Browser. Осталось сегодня: ' + Math.max(0, left) + ' из ' + DAILY_LIMIT
+    });
+  });
+
+  app.get('/getUploadLimit', (req, res) => {
+    const u = getUser(req);
+    if (!u) return res.json({ limit: DAILY_LIMIT, left: DAILY_LIMIT, guest: true });
+    res.json({ limit: DAILY_LIMIT, left: Math.max(0, DAILY_LIMIT - todayCount(u.name)), guest: false });
   });
 
   // ---------- список карт для Maps Browser ----------
@@ -101,9 +137,17 @@ function register(app, getUser) {
 
   // ---------- случайная карта режима (для Sandbox и игр) ----------
   app.get('/getRandomMap', (req, res) => {
-    const pool = maps.filter(m => !req.query.mapType || m.mapType === req.query.mapType);
+    const t = req.query.mapType;
+    // sandbox показывает карты всех режимов и всех авторов
+    const pool = (!t || t === 'sandbox') ? maps.slice() : maps.filter(m => m.mapType === t);
     if (!pool.length) return res.json(null);
-    const m = pool[Math.floor(Math.random() * pool.length)];
+    let m = pool[Math.floor(Math.random() * pool.length)];
+    // не повторяем ту же карту подряд, если есть выбор
+    if (pool.length > 1 && req.query.not) {
+      let guard = 0;
+      while (m.mapName === req.query.not && guard++ < 8)
+        m = pool[Math.floor(Math.random() * pool.length)];
+    }
     res.json({ mapName: m.mapName, author: m.author, mapType: m.mapType, mapData: m.mapData });
   });
 

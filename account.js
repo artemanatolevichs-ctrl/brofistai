@@ -128,6 +128,24 @@
       .then(function (r) { return r.json(); }).then(cb).catch(function () { cb(null); });
   }
 
+  // ---------- настройки аккаунта ----------
+  function settings(name) {
+    open('<div class="bf-x">X</div>'
+       + '<div class="bf-t">Настройки</div>'
+       + '<div style="text-align:center;font-size:13px;color:#6b7280;margin-bottom:4px">' + name + '</div>'
+       + '<div class="bf-b" id="bfGoogle">Привязать Google аккаунт</div>'
+       + '<div class="bf-h" id="bfGoogleNote"></div>'
+       + '<div class="bf-b" id="bfProfile">Мой профиль</div>');
+    box.querySelector('#bfProfile').onclick = function () {
+      location.href = BASE + 'users.html?name=' + encodeURIComponent(name);
+    };
+    box.querySelector('#bfGoogle').onclick = function () {
+      box.querySelector('#bfGoogleNote').innerHTML =
+        'Привязка пока недоступна: для неё нужен ключ приложения Google ' +
+        'и почтовый сервис для отправки кодов. Сейчас вход только по логину и паролю.';
+    };
+  }
+
   // ---------- шапка ----------
   var wired = false;
   function wire() {
@@ -189,7 +207,7 @@
       }
       if (items[1]) {
         items[1].style.cursor = 'pointer';
-        items[1].onclick = function () { location.href = BASE + 'users.html?name=' + encodeURIComponent(d.name); };
+        items[1].onclick = function () { settings(d.name); };
       }
       if (items[2]) {
         items[2].style.cursor = 'pointer';

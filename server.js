@@ -8,8 +8,8 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: { origin: "*" },
   maxHttpBufferSize: 1e6,
-  pingInterval: 30000,
-  pingTimeout: 90000,
+  pingInterval: 5000,
+  pingTimeout: 12000,
   transports: ['websocket', 'polling']
 });
 
@@ -34,6 +34,27 @@ accounts.register(app);
 require('./maps.js').register(app, accounts.currentUser);
 
 // адреса, на которые ссылается шапка сайта
+// автоподбор комнаты: та, где сейчас больше всего игроков этого режима
+app.get('/getBestRoom', (req, res) => {
+  const mode = String(req.query.mode || 'sandbox');
+  const LIMIT = 40;                      // больше — заводим новую комнату
+  let best = null, bestCount = -1;
+  gameState.rooms.forEach((set, key) => {
+    if (key.indexOf(mode + ':') !== 0) return;
+    const n = set.size;
+    if (n >= LIMIT) return;
+    if (n > bestCount) { bestCount = n; best = key.slice(mode.length + 1); }
+  });
+  if (!best) {
+    // свободных нет — создаём следующую по счёту
+    let i = 1;
+    while (gameState.rooms.has(mode + ':room' + i)) i++;
+    best = 'room' + i;
+    bestCount = 0;
+  }
+  res.json({ room: best, players: Math.max(0, bestCount) });
+});
+
 app.get('/editor/index.html', (req, res) => res.redirect('/editor.html'));
 app.get('/users/index.html', (req, res) => res.redirect('/users.html' + (req.originalUrl.split('?')[1] ? '?' + req.originalUrl.split('?')[1] : '')));
 app.get('/mapsBrowser/index.html', (req, res) => res.redirect('/mapsBrowser.html'));
@@ -59,7 +80,8 @@ io.on('connection', (socket) => {
   gameState.stats.totalPlayers++;
 
   socket.on('join', (data) => {
-    const room = data.room || 'main';
+    // режим входит в ключ комнаты, поэтому Two Player и Hide and Seek не пересекаются
+    const room = (data.gameMode || 'main') + ':' + (data.room || 'main');
     const player = {
       id: socket.id,
       name: data.playerName,
@@ -92,6 +114,7 @@ io.on('connection', (socket) => {
   socket.on('movePlayer', (data) => {
     const player = gameState.players.get(socket.id);
     if (player) {
+      player.seen = Date.now();
       player.position = data.position;
       const room = player.room;
       socket.to(room).emit('playerMoved', {
@@ -200,6 +223,24 @@ text-decoration:none;font-size:16px;cursor:pointer}</style></head><body>
   }
   res.status(404).send('Not found');
 });
+
+// подчистка «призраков»: если вкладку закрыли жёстко, игрок мог зависнуть в комнате
+setInterval(() => {
+  const now = Date.now();
+  gameState.players.forEach((p, id) => {
+    const alive = io.sockets.sockets.get(id);
+    if (alive && now - (p.seen || p.joinedAt) < 45000) return;
+    gameState.players.delete(id);
+    gameState.stats.totalPlayers--;
+    const rp = gameState.rooms.get(p.room);
+    if (rp) {
+      rp.delete(id);
+      if (!rp.size) { gameState.rooms.delete(p.room); gameState.stats.totalRooms--; }
+    }
+    io.to(p.room).emit('playerLeft', { playerId: id });
+    console.log('🧹 убран зависший игрок', p.name);
+  });
+}, 20000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

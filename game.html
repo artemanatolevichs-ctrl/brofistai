@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="color-scheme" content="light">
-<title>Brofist.io — Editor</title>
+<title>Brofist.io — Brofist.io — Editor</title>
 <style>
 :root{
   --accent:#3b82f6; --accent-dark:#2563eb; --ink:#1e2530; --muted:#8b93a1;
@@ -177,6 +177,10 @@ body.mob #insp{left:8px;right:8px;width:auto;top:auto;bottom:66px;transform:none
 body.mob #hint,body.mob #gravBox{display:none}
 body.mob #zoomBox{bottom:68px;right:8px}
 body.mob #msg h1{font-size:38px}
+
+/* ===== игровой режим: интерфейс редактора скрыт ===== */
+#tools,#insp,#modes,#scene,#stats,#bPlay,#exitBtn{display:none !important}
+body{overflow:hidden}
 </style>
 	<script src="device.js"></script>
 	<link rel="stylesheet" type="text/css" href="mobile.css">
@@ -1401,53 +1405,8 @@ document.body.appendChild(saveBtn);
 </script>
 <script src="account.js" defer></script>
 
-<script>
-/* Публикация карты в Maps Browser */
-(function(){
-  var btn = document.createElement('button');
-  btn.textContent = '\u{1F4E4} \u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u0442\u044c \u0432 Maps Browser';
-  btn.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:11px 22px;'
-    + 'background:#2196F3;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:bold;'
-    + 'font-size:14px;z-index:1000;box-shadow:0 4px 12px rgba(33,150,243,.35);font-family:sans-serif';
-  if (window.matchMedia('(max-width: 820px), (pointer: coarse)').matches) btn.style.bottom = '128px';
-  document.body.appendChild(btn);
 
-  function send(name, overwrite){
-    var data;
-    try {
-      var m = window.getEditorMap();
-      data = m.data; window.__mode = m.mode;
-    } catch(e){ alert('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u0442\u044c \u043a\u0430\u0440\u0442\u0443'); return; }
-
-    var body = 'mapName=' + encodeURIComponent(name)
-             + '&mapType=' + encodeURIComponent(window.__mode || 'sandbox')
-             + '&mapData=' + encodeURIComponent(data)
-             + '&mapOverwrite=' + (overwrite ? 'true' : 'false');
-
-    fetch('/uploadMap', {method:'POST', credentials:'same-origin',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body})
-      .then(function(r){ return r.json(); })
-      .then(function(r){
-        if (r.status === 'success') {
-          if (confirm(r.message + '\n\n\u041e\u0442\u043a\u0440\u044b\u0442\u044c Maps Browser?'))
-            location.href = '/mapsBrowser.html';
-        } else if (r.status === 'exists') {
-          if (confirm(r.message)) send(name, true);
-        } else {
-          alert(r.message || '\u041e\u0448\u0438\u0431\u043a\u0430');
-        }
-      })
-      .catch(function(){ alert('\u0421\u0435\u0440\u0432\u0435\u0440 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d. \u0417\u0430\u043f\u0443\u0441\u0442\u0438 npm start'); });
-  }
-
-  btn.onclick = function(){
-    var name = prompt('\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043a\u0430\u0440\u0442\u044b (2-30 \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432):', '');
-    if (name === null) return;
-    name = name.trim();
-    if (name.length < 2) { alert('\u0421\u043b\u0438\u0448\u043a\u043e\u043c \u043a\u043e\u0440\u043e\u0442\u043a\u043e\u0435 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435'); return; }
-    send(name, false);
-  };
-})();
-</script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
