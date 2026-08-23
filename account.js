@@ -133,9 +133,10 @@
     open('<div class="bf-x">X</div>'
        + '<div class="bf-t">Настройки</div>'
        + '<div style="text-align:center;font-size:13px;color:#6b7280;margin-bottom:4px">' + name + '</div>'
+       + '<div class="bf-b" id="bfProfile">Мой профиль</div>'
        + '<div class="bf-b" id="bfGoogle">Привязать Google аккаунт</div>'
        + '<div class="bf-h" id="bfGoogleNote"></div>'
-       + '<div class="bf-b" id="bfProfile">Мой профиль</div>');
+       + '<div id="bfOwner"></div>');
     box.querySelector('#bfProfile').onclick = function () {
       location.href = BASE + 'users.html?name=' + encodeURIComponent(name);
     };
@@ -144,6 +145,81 @@
         'Привязка пока недоступна: для неё нужен ключ приложения Google ' +
         'и почтовый сервис для отправки кодов. Сейчас вход только по логину и паролю.';
     };
+    // раздел появится только у владельца — остальным сервер ничего не вернёт
+    get('/owner/accounts', function (r) {
+      if (!r || r.status !== 'success') return;
+      ownerPanel(box.querySelector('#bfOwner'), r.linked || []);
+    });
+  }
+
+  // ---------- инструменты владельца ----------
+  function ownerPanel(host, linked) {
+    if (!host) return;
+    host.innerHTML =
+        '<div style="border-top:1px solid #e6ebf0;margin:12px 0 8px"></div>'
+      + '<div class="bf-t" style="font-size:14px">Управление</div>'
+      + '<input class="bf-i" id="bfRenFrom" placeholder="Чей ник менять">'
+      + '<input class="bf-i" id="bfRenTo" placeholder="Новый ник" maxlength="20">'
+      + '<div class="bf-b" id="bfRenGo">Сменить ник</div>'
+      + '<div class="bf-e" id="bfRenMsg"></div>'
+      + '<div class="bf-t" style="font-size:14px">Мои аккаунты</div>'
+      + '<div id="bfLinked" style="font-size:13px;margin-bottom:6px"></div>'
+      + '<input class="bf-i" id="bfLinkName" placeholder="Логин аккаунта">'
+      + '<input class="bf-i" id="bfLinkPass" type="password" placeholder="Пароль от него">'
+      + '<div class="bf-b" id="bfLinkGo">Привязать</div>'
+      + '<div class="bf-e" id="bfLinkMsg"></div>';
+
+    function drawLinked(list) {
+      var el = host.querySelector('#bfLinked');
+      if (!list.length) { el.innerHTML = '<span style="color:#9aa3ad">пока ничего не привязано</span>'; return; }
+      el.innerHTML = list.map(function (u) {
+        return '<div style="display:flex;gap:6px;align-items:center;margin:4px 0">'
+             + '<span style="flex:1">' + u.name + ' · ' + u.coins + ' 🪙</span>'
+             + '<button data-go="' + u.name + '" style="border:1px solid #2196F3;background:#fff;'
+             + 'color:#2196F3;border-radius:4px;padding:3px 9px;cursor:pointer">Войти</button>'
+             + '<button data-rm="' + u.name + '" style="border:1px solid #e74c3c;background:#fff;'
+             + 'color:#e74c3c;border-radius:4px;padding:3px 9px;cursor:pointer">×</button></div>';
+      }).join('');
+    }
+    drawLinked(linked);
+
+    host.querySelector('#bfRenGo').onclick = function () {
+      post('/renameUser', {
+        from: host.querySelector('#bfRenFrom').value.trim(),
+        to: host.querySelector('#bfRenTo').value.trim()
+      }, function (r) {
+        var m = host.querySelector('#bfRenMsg');
+        m.style.color = (r.status === 'success') ? '#2e9b2e' : 'red';
+        m.textContent = r.message || '';
+      });
+    };
+
+    host.querySelector('#bfLinkGo').onclick = function () {
+      post('/owner/link', {
+        name: host.querySelector('#bfLinkName').value.trim(),
+        password: host.querySelector('#bfLinkPass').value
+      }, function (r) {
+        var m = host.querySelector('#bfLinkMsg');
+        m.style.color = (r.status === 'success') ? '#2e9b2e' : 'red';
+        m.textContent = r.message || '';
+        if (r.status === 'success') {
+          host.querySelector('#bfLinkName').value = '';
+          host.querySelector('#bfLinkPass').value = '';
+          get('/owner/accounts', function (x) { if (x && x.linked) drawLinked(x.linked); });
+        }
+      });
+    };
+
+    host.addEventListener('click', function (e) {
+      var go = e.target.closest('[data-go]'), rm = e.target.closest('[data-rm]');
+      if (go) post('/owner/switch', { name: go.dataset.go }, function (r) {
+        if (r.status === 'success') location.reload();
+        else host.querySelector('#bfLinkMsg').textContent = r.message || '';
+      });
+      if (rm) post('/owner/unlink', { name: rm.dataset.rm }, function () {
+        get('/owner/accounts', function (x) { if (x && x.linked) drawLinked(x.linked); });
+      });
+    });
   }
 
   // ---------- шапка ----------

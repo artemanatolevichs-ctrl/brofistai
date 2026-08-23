@@ -176,3 +176,23 @@ html.is-touch .refresh-button:hover { background: inherit; }
   .footer .row1 .section { padding: 0 8px; }
   .footer .item { font-size: 12px; }
 }
+
+/* ---------- новости и таблица лидеров ---------- */
+@media (max-width: 760px) {
+  .logsWrap, .lbWrap { padding: 12px 10px 70px; }
+  .logsWrap h1, .lbWrap h1 { font-size: 21px; }
+  .logItem h3 { font-size: 16px; }
+  .logItem p { font-size: 14px; }
+  .logDel { padding: 6px 12px; font-size: 13px; }
+  #editor input, #editor textarea { font-size: 16px; }   /* меньше 16px — iOS зумит страницу */
+  #editor button { width: 100%; padding: 13px; font-size: 15px; }
+  .lbRow { padding: 12px 8px; gap: 9px; }
+  .lbName { font-size: 15px; }
+  .lbCoins { font-size: 14px; }
+}
+
+/* ---------- окно входа и настроек ---------- */
+@media (max-width: 760px) {
+  .bf-box { max-height: 88vh; overflow-y: auto; }
+  .bf-i { font-size: 16px; }
+}

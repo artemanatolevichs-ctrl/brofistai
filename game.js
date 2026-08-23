@@ -135,6 +135,7 @@
     try {
       GAME.loadMap(m.mapData);
       GAME.startPlay();
+      coinsSent = 0;
       applyColor();
     } catch (e) {
       $('gMapAuthor').textContent = 'карта повреждена';
@@ -190,10 +191,10 @@
         banner('Раунд окончен', 'Новая карта. До старта 30 секунд.', true);
         setTimeout(function () { banner('', '', false); }, 3000);
       }
-    } else if (MODE === 'twoPlayer') {
+    } else if (MODE === 'twoPlayer' || MODE === 'race') {
       phaseEnds = Date.now() + ROUND_MS;
       nextMap();
-      log('Время вышло — следующая карта', 's');
+      log('Время вышло — следующая карта');
     } else if (MODE === 'sandbox') {
       phaseEnds = Date.now() + SANDBOX_MS;
       nextMap();
@@ -218,26 +219,36 @@
       return;
     }
 
-    if (MODE === 'race') {
-      phase = 'dev';
-      $('gTimeBox').style.display = 'none';
-      banner('Race — в разработке', 'Этот режим ещё не готов. Карты для него уже можно создавать в Map Editor.', true);
-      return;
-    }
-
     connect();
 
     if (MODE === 'hideAndSeek') {
       phase = 'lobby'; phaseEnds = Date.now() + LOBBY_MS;
       banner('Ожидание игроков', 'Роли распределятся через 30 секунд.', true);
       setTimeout(function () { banner('', '', false); }, 3500);
-    } else if (MODE === 'twoPlayer') {
+    } else if (MODE === 'twoPlayer' || MODE === 'race') {
       phase = 'round'; phaseEnds = Date.now() + ROUND_MS;
     } else {
       phase = 'round'; phaseEnds = Date.now() + SANDBOX_MS;
     }
     nextMap();
   }
+
+  // ---------- монеты на аккаунт ----------
+  var coinsSent = 0;
+  setInterval(function () {
+    if (VIEW || !GAME.playing) return;
+    var have = GAME.coins || 0;
+    if (have <= coinsSent) return;
+    var delta = have - coinsSent;
+    coinsSent = have;
+    fetch('/addCoins', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'coins=' + delta
+    }).then(function (r) { return r.json(); }).then(function (r) {
+      if (r && r.status === 'success') log('+' + delta + ' 🪙 (всего ' + r.coins + ')');
+    }).catch(function () {});
+  }, 2500);
 
   // ---------- сеть ----------
   function connect() {
@@ -342,7 +353,7 @@
   // все дошли до финиша — не ждём таймер, ставим новую карту
   var switching = false;
   function checkAllFinished() {
-    if (switching || phase !== 'round' || MODE === 'race' || VIEW) return;
+    if (switching || phase !== 'round' || VIEW) return;
     if (!GAME.done) return;
     var ids = Object.keys(others);
     for (var i = 0; i < ids.length; i++) if (!others[ids[i]].fin) return;

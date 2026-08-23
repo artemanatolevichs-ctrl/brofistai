@@ -12,7 +12,11 @@
     'editor':               'editor.html',
     'maps browser':         'mapsBrowser.html',
     'browser':              'mapsBrowser.html',
-    'skins browser':        'mapsBrowser.html'
+    'skins browser':        'mapsBrowser.html',
+    'logs':                 'logs.html',
+    'новости':              'logs.html',
+    'leaderboards':         'leaderboards.html',
+    'leaderboard':          'leaderboards.html'
   };
 
   function go(target) {
@@ -71,7 +75,24 @@
     box.appendChild(b);
   }
 
-  function boot() { ensureSignIn(); wireNav(); }
+  // в подменю Menu добавляем разделы, которых нет в исходной вёрстке
+  function addMenuItems() {
+    var subs = document.querySelectorAll('.header-link-item-sub-menu');
+    if (!subs.length) return;
+    var menu = subs[subs.length - 1];
+    ['Leaderboards', 'Logs'].forEach(function (name) {
+      var exists = Array.prototype.some.call(menu.querySelectorAll('a'), function (a) {
+        return label(a) === name.toLowerCase();
+      });
+      if (exists) return;
+      var a = document.createElement('a');
+      a.href = '#';
+      a.textContent = name;
+      menu.appendChild(a);
+    });
+  }
+
+  function boot() { ensureSignIn(); addMenuItems(); wireNav(); }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

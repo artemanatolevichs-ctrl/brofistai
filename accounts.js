@@ -6,6 +6,9 @@ const crypto = require('crypto');
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'users.json');
 
+const OWNER = process.env.OWNER_NAME || 'Аккаунт';
+const isOwner = u => !!u && String(u.name).toLowerCase() === OWNER.toLowerCase();
+
 let db = { users: {}, sessions: {} };
 
 function load() {
@@ -50,6 +53,13 @@ function checkPassword(pw) {
   return '';
 }
 
+// один аккаунт на устройство: IP храним хешем, сам адрес не сохраняем
+function ipKey(req) {
+  const raw = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+           || (req.socket && req.socket.remoteAddress) || '';
+  return raw ? crypto.createHash('sha256').update(raw).digest('hex').slice(0, 24) : '';
+}
+
 function parseCookies(req) {
   const out = {};
   (req.headers.cookie || '').split(';').forEach(p => {
@@ -92,10 +102,18 @@ function register(app) {
     if (err) return res.json({ status: 'error', message: err });
     if (db.users[key(name)]) return res.json({ status: 'error', message: 'Такой логин уже занят' });
 
+    const ip = ipKey(req);
+    if (ip) {
+      const owned = Object.values(db.users).some(u => u.ip === ip && isOwner(u));
+      const taken = Object.values(db.users).find(u => u.ip === ip);
+      if (taken && !owned)
+        return res.json({ status: 'error', message: 'С этого устройства уже создан аккаунт «' + taken.name + '»' });
+    }
+
     const salt = crypto.randomBytes(16).toString('hex');
     db.users[key(name)] = {
       name, salt, hash: hash(password, salt),
-      joined: Date.now(), lastSeen: Date.now(),
+      joined: Date.now(), lastSeen: Date.now(), ip: ipKey(req),
       coins: 0, about: '', avatar: '0',
       friends: [], incoming: [], outgoing: []
     };
@@ -271,4 +289,4 @@ function register(app) {
   app.get('/captcha/getCaptcha', (req, res) => res.json({}));
 }
 
-module.exports = { register, currentUser };
+module.exports = { register, currentUser, isOwner, OWNER, getDb: () => db, save, newSession, hash, key, checkName };

@@ -32,6 +32,7 @@ app.use(express.json());
 const accounts = require('./accounts.js');
 accounts.register(app);
 require('./maps.js').register(app, accounts.currentUser);
+require('./extras.js').register(app, accounts);
 
 // адреса, на которые ссылается шапка сайта
 // автоподбор комнаты: та, где сейчас больше всего игроков этого режима
