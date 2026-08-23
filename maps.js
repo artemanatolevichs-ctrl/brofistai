@@ -6,6 +6,10 @@ const DATA_DIR = path.join(__dirname, 'data');
 const MAPS_FILE = path.join(DATA_DIR, 'maps.json');
 
 const MODES = ['hideAndSeek', 'twoPlayer', 'race'];
+// в игровые режимы попадают только карты владельца сайта
+// (имя можно поменять переменной окружения OWNER_NAME, без правки кода)
+const OWNER = process.env.OWNER_NAME || 'Аккаунт';
+
 const DAILY_LIMIT = 3;                 // сколько новых карт можно выложить за сутки
 
 // сколько новых карт автор выложил сегодня
@@ -138,8 +142,11 @@ function register(app, getUser) {
   // ---------- случайная карта режима (для Sandbox и игр) ----------
   app.get('/getRandomMap', (req, res) => {
     const t = req.query.mapType;
-    // sandbox показывает карты всех режимов и всех авторов
-    const pool = (!t || t === 'sandbox') ? maps.slice() : maps.filter(m => m.mapType === t);
+    // sandbox — карты всех режимов и всех авторов
+    // остальные режимы — только карты владельца
+    const pool = (!t || t === 'sandbox')
+      ? maps.slice()
+      : maps.filter(m => m.mapType === t && low(m.author) === low(OWNER));
     if (!pool.length) return res.json(null);
     let m = pool[Math.floor(Math.random() * pool.length)];
     // не повторяем ту же карту подряд, если есть выбор
@@ -193,4 +200,4 @@ function register(app, getUser) {
   });
 }
 
-module.exports = { register, MODES };
+module.exports = { register, MODES, OWNER };
