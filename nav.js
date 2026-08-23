@@ -15,8 +15,9 @@
     'skins browser':        'mapsBrowser.html',
     'logs':                 'logs.html',
     'новости':              'logs.html',
-    'leaderboards':         'leaderboards.html',
-    'leaderboard':          'leaderboards.html'
+    'leaderboards':         'leaderboard.html',
+    'leaderboard':          'leaderboard.html',
+    'таблица лидеров':      'leaderboard.html'
   };
 
   function go(target) {
@@ -52,12 +53,16 @@
     });
 
     // кнопки и ссылки в шапке
-    document.querySelectorAll('.header-link-item-button, .header-link-a, .header-link-item-sub-menu a')
+    document.querySelectorAll('.header-link-item-button, .header-link-a, .header-link-item-sub-menu a, .header-more-link-button')
       .forEach(function (el) {
         var dest = ROUTES[label(el)];
         el.style.cursor = 'pointer';
         el.addEventListener('click', function (e) {
           e.preventDefault();
+          var ov = document.getElementById('moreLinksOverlay');
+          var box = document.getElementById('moreLinksContainer');
+          if (ov) ov.style.display = 'none';
+          if (box) box.style.display = 'none';
           if (dest) go(dest); else toast('Этот раздел ещё не готов');
         });
       });
@@ -75,24 +80,7 @@
     box.appendChild(b);
   }
 
-  // в подменю Menu добавляем разделы, которых нет в исходной вёрстке
-  function addMenuItems() {
-    var subs = document.querySelectorAll('.header-link-item-sub-menu');
-    if (!subs.length) return;
-    var menu = subs[subs.length - 1];
-    ['Leaderboards', 'Logs'].forEach(function (name) {
-      var exists = Array.prototype.some.call(menu.querySelectorAll('a'), function (a) {
-        return label(a) === name.toLowerCase();
-      });
-      if (exists) return;
-      var a = document.createElement('a');
-      a.href = '#';
-      a.textContent = name;
-      menu.appendChild(a);
-    });
-  }
-
-  function boot() { ensureSignIn(); addMenuItems(); wireNav(); }
+  function boot() { ensureSignIn(); wireNav(); }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
