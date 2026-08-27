@@ -15,6 +15,8 @@
     'skins browser':        'mapsBrowser.html',
     'logs':                 'logs.html',
     'новости':              'logs.html',
+    'avatar':               'avatar.html',
+    'аватар':               'avatar.html',
     'leaderboards':         'leaderboard.html',
     'leaderboard':          'leaderboard.html',
     'таблица лидеров':      'leaderboard.html'

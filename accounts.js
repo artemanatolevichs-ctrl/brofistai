@@ -189,7 +189,25 @@ function register(app) {
   });
   app.get('/getMyBio', (req, res) => {
     const u = currentUser(req);
-    res.json({ data: u ? { name: u.name, avatar: u.avatar } : {} });
+    if (!u) return res.json({ name: '', avatar: '0', chatColor: '#000000', whatBro: 'none' });
+    res.json({
+      name: u.name,
+      avatar: u.avatar || '0',
+      chatColor: u.chatColor || '#000000',
+      whatBro: u.whatBro || 'none'
+    });
+  });
+
+  // сохранение аватара и цвета чата
+  app.post('/setMyBio', (req, res) => {
+    const u = currentUser(req);
+    if (!u) return res.json({ status: 'error', message: 'Войдите в аккаунт' });
+    const avatar = String(req.body.avatar || '').trim();
+    const chatColor = String(req.body.chatColor || '').trim();
+    if (avatar) u.avatar = avatar.slice(0, 40);
+    if (/^#[0-9a-fA-F]{6}$/.test(chatColor)) u.chatColor = chatColor;
+    save();
+    res.json({ status: 'success' });
   });
   app.get('/getMySettings', (req, res) => res.json({ data: {} }));
   app.get('/getMyOldMapsLink', (req, res) => res.json({ link: '' }));
@@ -281,8 +299,22 @@ function register(app) {
   // ---------- заглушки ----------
   app.get('/getSkins', (req, res) => res.json({ skins: [], page: '1/1', count: 0 }));
   app.get('/getSkinsForList', (req, res) => res.json({ skins: [], page: '1/1', count: 0 }));
-  app.get('/getMyAssets', (req, res) => res.json({ assets: [] }));
-  app.get('/getStoreCosmetics', (req, res) => res.json({ items: [] }));
+  app.get('/getStoreCosmetics', (req, res) => {
+    // страница магазина скинов: пока один бесплатный базовый скин
+    const page = parseInt(req.query.page) || 1;
+    res.json({ page: page, cosmetics: page === 1 ? [{ name: '0', price: 0 }] : [] });
+  });
+  app.get('/getMyAssets', (req, res) => {
+    const u = currentUser(req);
+    const page = parseInt(req.query.page) || 1;
+    // базовый скин есть у всех
+    res.json({ page: page, skins: page === 1 ? [{ assetName: '0' }] : [] });
+  });
+  app.post('/buyStoreItem', (req, res) => {
+    const u = currentUser(req);
+    if (!u) return res.json({ code: 0 });          // 0 = войдите
+    res.json({ code: 3 });                          // 3 = уже владеете (базовый бесплатный)
+  });
   app.get('/getAllSupporters', (req, res) => res.json([]));
   app.get('/getGamingServersInfo', (req, res) => res.json([]));
   app.post('/reportUser', (req, res) => res.json({ code: 2 }));
